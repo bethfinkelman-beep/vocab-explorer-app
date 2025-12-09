@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English Explorer - Optimized for Embed</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Minimal custom styling for compatibility */
+        body {
+            font-family: ui-sans-serif, system-ui, sans-serif;
+            background-color: #f0f4f8;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+        .game-card {
+            background-color: #ffffff;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            background-color: #4f46e5;
+            transition: background-color 0.15s;
+        }
+        .btn-primary:hover {
+            background-color: #4338ca;
+        }
+        /* Custom Loader for minimal external dependencies */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4f46e5;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <div id="game-container" class="max-w-4xl mx-auto w-full flex-grow flex flex-col items-center justify-center">
+        <!-- Header: Score and Mode Control -->
+        <header class="w-full mb-4 flex justify-between items-center p-3 bg-white rounded-xl shadow-lg">
+            <div id="score-lives-wrapper" class="flex">
+                <div id="score-display" class="flex items-center text-sm font-bold text-gray-700 hidden">
+                    <span class="text-yellow-500 mr-1">⭐</span>
+                    Score: <span id="score" class="ml-1 text-indigo-600">0</span>
+                </div>
+                <div id="lives-display" class="flex items-center text-sm font-bold text-gray-700 ml-4 hidden">
+                    <span class="text-red-500 mr-1">❤️</span>
+                    Lives: <span id="lives" class="ml-1 text-red-500">3</span>
+                </div>
+            </div>
+            
+            <div class="flex items-center">
+                <button id="toggle-hebrew" class="p-2 bg-gray-100 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-200 transition">
+                    Hebrew: <span id="hebrew-status">ON</span>
+                </button>
+                <button id="go-to-menu-btn" class="p-2 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition ml-2 hidden">
+                    Main Menu
+                </button>
+            </div>
+        </header>
+
+        <!-- Game Card Area -->
+        <main id="game-card" class="game-card w-full max-w-lg p-6 rounded-2xl text-center flex flex-col items-center min-h-[350px]">
+            <h1 class="text-2xl font-extrabold text-indigo-700 mb-4">English Explorer!</h1>
+            <p id="game-instructions" class="text-gray-600 mb-6 text-md">Loading...</p>
+
+            <!-- Dynamic Content Area -->
+            <div id="dynamic-content" class="w-full flex-grow flex flex-col justify-center items-center">
+                <div class="text-center">
+                    <div class="loader text-indigo-500 text-4xl mb-4"></div>
+                    <p class="mt-4 text-gray-500" id="loading-status">Starting up...</p>
+                </div>
+            </div>
+
+            <!-- Action Button -->
+            <button id="action-button" class="btn-primary w-full max-w-xs py-3 mt-6 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition hidden">
+                Start Learning
+            </button>
+        </main>
+    </div>
+
+    <!-- Minimal Modal for messages -->
+    <div id="game-over-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
+        <div class="bg-white p-6 rounded-xl shadow-2xl text-center max-w-md w-full">
+            <span id="modal-icon" class="text-5xl mb-4 block"></span>
+            <h2 id="modal-title" class="text-2xl font-bold text-gray-800 mb-2"></h2>
+            <p id="modal-message" class="text-md text-gray-600 mb-4"></p>
+            <button id="restart-game-btn" class="btn-primary w-full py-2 text-white font-bold rounded-xl hover:shadow-xl">
+                Restart Lesson
+            </button>
+        </div>
+    </div>
+
+
+    <script>
+        // --- GAME DATA ---
+        const VOCABULARY = [
+            { word: "AIM", hebrew: "מטרה / לכוון" },
+            { word: "DEMAND", hebrew: "דרישה / לדרוש" },
+            { word: "HEAD", hebrew: "ראש / לנווט" },
+            { word: "OPTION", hebrew: "אפשרות" },
+            { word: "ALLOW", hebrew: "לאפשר" },
+            { word: "PROPERTY", hebrew: "רכוש / נכס" },
+            { word: "TEMPORARY", hebrew: "זמני" },
+            { word: "PERMANENT", hebrew: "קבוע" },
+            { word: "ADAPT", hebrew: "להסתגל" },
+            { word: "ATTACK", hebrew: "לתקוף / התקפה" },
+            { word: "COMMUNICATE", hebrew: "לתקשר" },
+            { word: "RELEASE", hebrew: "לשחרר" },
+            { word: "AMAZING", hebrew: "מדהים" },
+            { word: "CONFIDENT", hebrew: "בטוח בעצמו" },
+            { word: "EXPENSIVE", hebrew: "יקר" },
+        ];
+
+        // --- GAME STATE ---
+        let game = {
+            score: 0,
+            lives: 3,
+            currentWordIndex: 0,
+            stage: 0,
+            isGameOver: false,
+            mode: 'SELECTION' // SELECTION, PRACTICE, or GAME
+        };
+
+        const STAGE_CONFIG = [
+            { name: "Presentation", instructions: "Stage 1/4: Learn the new word.", points: 0 },
+            { name: "Recognition (Quiz)", instructions: "Stage 2/4: Choose the correct Hebrew translation.", points: 10, bonus: 5, isGraded: true },
+            { name: "Repetition (Review)", instructions: "Stage 3/4: Review before the final test.", points: 0 },
+            { name: "Production (Typing)", instructions: "Stage 4/4: Type the word correctly in English.", points: 20, bonus: 10, isGraded: true },
+        ];
+        
+        // --- NOTE: Stage 1 (Reading Practice) is REMOVED to avoid the microphone security issue. ---
+
+
+        // --- UI & UTILITY FUNCTIONS (Simplified) ---
+        const scoreDisplay = document.getElementById('score');
+        const livesDisplay = document.getElementById('lives');
+        const gameInstructions = document.getElementById('game-instructions');
+        const dynamicContent = document.getElementById('dynamic-content');
+        const actionButton = document.getElementById('action-button');
+        const toggleHebrewBtn = document.getElementById('toggle-hebrew');
+        const hebrewStatusSpan = document.getElementById('hebrew-status');
+        const gameOverModal = document.getElementById('game-over-modal');
+        const goToMenuBtn = document.getElementById('go-to-menu-btn');
+        const scoreDisplayWrapper = document.getElementById('score-display');
+        const livesDisplayWrapper = document.getElementById('lives-display');
+        
+        const modalIcon = document.getElementById('modal-icon');
+        const modalTitle = document.getElementById('modal-title');
+        const modalMessage = document.getElementById('modal-message');
+
+        let showHebrew = true;
+
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function updateUI() {
+            scoreDisplay.textContent = game.score;
+            livesDisplay.textContent = game.lives;
+            
+            if (game.mode === 'GAME') {
+                const currentStageIndex = game.stage;
+                gameInstructions.textContent = STAGE_CONFIG[currentStageIndex].instructions;
+                scoreDisplayWrapper.classList.remove('hidden');
+                livesDisplayWrapper.classList.remove('hidden');
+                goToMenuBtn.classList.remove('hidden');
+            } else if (game.mode === 'PRACTICE') {
+                gameInstructions.textContent = "Practice Mode: Flashcard Review";
+                scoreDisplayWrapper.classList.add('hidden');
+                livesDisplayWrapper.classList.add('hidden');
+                goToMenuBtn.classList.remove('hidden');
+            } else { // SELECTION
+                scoreDisplayWrapper.classList.add('hidden');
+                livesDisplayWrapper.classList.add('hidden');
+                goToMenuBtn.classList.add('hidden');
+            }
+        }
+
+        function flashFeedback(element, isCorrect) {
+            const colorClass = isCorrect ? 'bg-green-100' : 'bg-red-100';
+            element.classList.add(colorClass);
+            setTimeout(() => {
+                element.classList.remove(colorClass);
+            }, 500);
+        }
+
+        function loseLife() {
+            game.lives--;
+            updateUI();
+            flashFeedback(document.getElementById('game-card'), false);
+            if (game.lives <= 0) {
+                game.isGameOver = true;
+                gameOver('lives_out');
+            }
+        }
+
+        function alertMessage(title, message) {
+            modalIcon.textContent = '💡';
+            modalTitle.textContent = title;
+            modalMessage.innerHTML = message;
+            
+            document.getElementById('restart-game-btn').textContent = 'Continue'; 
+            document.getElementById('restart-game-btn').onclick = () => {
+                gameOverModal.classList.add('hidden');
+            };
+
+            gameOverModal.classList.remove('hidden');
+        }
+        
+        function updateScore(points) {
+            if (game.isGameOver || game.mode !== 'GAME') return;
+            game.score += points;
+            updateUI();
+            // NOTE: Firestore removed for embedding, score is session-based.
+        }
+
+        // --- MODE SELECTION ---
+
+        function renderModeSelection() {
+            game.mode = 'SELECTION';
+            gameInstructions.textContent = "Select a mode to begin your English vocabulary session.";
+            actionButton.classList.add('hidden');
+            gameOverModal.classList.add('hidden');
+            
+            updateUI(); 
+
+            dynamicContent.innerHTML = `
+                <div class="flex flex-col items-center w-full max-w-sm">
+                    <h2 class="text-xl font-bold text-gray-800 mb-6">Choose Your Path</h2>
+                    
+                    <button id="start-practice-btn" class="w-full py-3 my-2 bg-indigo-500 text-white font-bold rounded-xl shadow-md hover:bg-indigo-600 transition text-lg">
+                        Practice Mode (Flashcards)
+                    </button>
+                    <p class="text-xs text-gray-500 mb-4 text-center">Study words at your own pace. No score or lives lost.</p>
+
+                    <div class="w-full h-px bg-gray-200 my-2"></div>
+
+                    <button id="start-game-btn" class="w-full py-3 my-2 bg-green-500 text-white font-bold rounded-xl shadow-md hover:bg-green-600 transition text-lg">
+                        Game Mode (Quiz + Scoring)
+                    </button>
+                    <p class="text-xs text-gray-500 text-center">Test your knowledge through all 4 stages. Get a high score!</p>
+                </div>
+            `;
+            
+            document.getElementById('start-practice-btn').onclick = startPracticeMode;
+            document.getElementById('start-game-btn').onclick = startGameMode;
+        }
+
+        // --- PRACTICE MODE LOGIC ---
+        function startPracticeMode() {
+            game.mode = 'PRACTICE';
+            game.currentWordIndex = 0;
+            shuffle(VOCABULARY);
+            updateUI();
+            renderFlashcardPractice();
+        }
+
+        function renderFlashcardPractice() {
+            if (game.currentWordIndex >= VOCABULARY.length) {
+                return nextPracticeWord(); // Handles completion
+            }
+
+            const wordData = VOCABULARY[game.currentWordIndex];
+            
+            let hebrewDisplay = showHebrew ? `<p dir="rtl" class="text-lg text-gray-500 mt-2">${wordData.hebrew}</p>` : '';
+
+            dynamicContent.innerHTML = `
+                <div class="flex flex-col items-center">
+                    <p class="text-md font-medium text-indigo-500 mb-4">Word ${game.currentWordIndex + 1} of ${VOCABULARY.length}</p>
+                    <span class="text-7xl mb-4">📖</span>
+                    <h2 class="text-4xl font-extrabold text-gray-800 tracking-wider mb-2">${wordData.word}</h2>
+                    ${hebrewDisplay}
+                </div>
+            `;
+
+            actionButton.textContent = "Next Word";
+            actionButton.onclick = nextPracticeWord;
+            actionButton.classList.remove('hidden');
+        }
+
+        function nextPracticeWord() {
+            game.currentWordIndex++;
+            if (game.currentWordIndex >= VOCABULARY.length) {
+                game.currentWordIndex = 0;
+                alertMessage("Practice Complete!", `You have reviewed all ${VOCABULARY.length} words. Restarting practice.`);
+                shuffle(VOCABULARY);
+            }
+            renderFlashcardPractice();
+        }
+
+        // --- GAME MODE LOGIC ---
+
+        function startGameMode() {
+            game.mode = 'GAME';
+            restartGameMode();
+            updateUI(); 
+        }
+        
+        function gameOver(status = 'lives_out') {
+            game.isGameOver = true;
+            actionButton.classList.add('hidden');
+
+            if (status === 'completed') {
+                modalIcon.textContent = '🏆';
+                modalTitle.textContent = 'Lesson Complete!';
+                modalMessage.innerHTML = `You mastered all words! Final score: <span class="text-indigo-600 font-extrabold">${game.score}</span> points.`;
+            } else { // lives_out
+                modalIcon.textContent = '💀';
+                modalTitle.textContent = 'Game Over!';
+                modalMessage.innerHTML = `You ran out of lives! Final score: <span class="text-indigo-600 font-extrabold">${game.score}</span> points.`;
+            }
+
+            document.getElementById('restart-game-btn').textContent = 'Restart Lesson';
+            document.getElementById('restart-game-btn').onclick = restartGameMode; 
+            
+            gameOverModal.classList.remove('hidden');
+        }
+
+        function restartGameMode() {
+            gameOverModal.classList.add('hidden');
+            game.score = 0;
+            game.lives = 3;
+            game.currentWordIndex = 0;
+            game.stage = 0;
+            game.isGameOver = false;
+            shuffle(VOCABULARY); 
+            updateUI();
+            nextWord();
+        }
+
+        function nextStage() {
+            game.stage++;
+            if (game.stage >= STAGE_CONFIG.length) {
+                game.stage = 0; 
+                game.currentWordIndex++;
+            }
+
+            if (game.currentWordIndex >= VOCABULARY.length) {
+                gameOver('completed');
+                return;
+            }
+
+            updateUI();
+            
+            switch (game.stage) {
+                case 0: // Presentation
+                case 2: // Repetition (Review)
+                    renderFlashcard();
+                    break;
+                case 1: // Recognition
+                    renderRecognitionQuiz();
+                    break;
+                case 3: // Production
+                    renderProductionTyping();
+                    break;
+            }
+        }
+
+        function nextWord() {
+            game.stage = 0; 
+            updateUI();
+            renderFlashcard();
+        }
+
+        // --- STAGE RENDERING AND LOGIC ---
+
+        function renderFlashcard() {
+            const wordData = VOCABULARY[game.currentWordIndex];
+            const stageName = STAGE_CONFIG[game.stage].name;
+
+            let hebrewDisplay = showHebrew ? `<p dir="rtl" class="text-lg text-gray-500 mt-2">${wordData.hebrew}</p>` : '';
+
+            dynamicContent.innerHTML = `
+                <div class="flex flex-col items-center">
+                    <p class="text-md font-medium text-indigo-500 mb-4">${stageName}</p>
+                    <span class="text-7xl mb-4">📚</span>
+                    <h2 class="text-4xl font-extrabold text-gray-800 tracking-wider mb-2">${wordData.word}</h2>
+                    ${hebrewDisplay}
+                </div>
+            `;
+
+            actionButton.textContent = "Next Stage";
+            actionButton.onclick = nextStage;
+            actionButton.classList.remove('hidden');
+        }
+
+        function renderRecognitionQuiz() {
+            const correctAnswer = VOCABULARY[game.currentWordIndex];
+            let incorrectAnswers = [];
+            let availableVocab = VOCABULARY.filter((w, i) => i !== game.currentWordIndex);
+            shuffle(availableVocab);
+            incorrectAnswers = availableVocab.slice(0, 3);
+
+            const options = [...incorrectAnswers.map(w => w.hebrew), correctAnswer.hebrew];
+            shuffle(options);
+
+            const optionsHtml = options.map((hebrew) => `
+                <button dir="rtl" data-answer="${hebrew}" class="quiz-option w-full py-3 my-2 bg-indigo-100 text-indigo-700 font-semibold rounded-lg hover:bg-indigo-200 transition">
+                    ${hebrew}
+                </button>
+            `).join('');
+
+            dynamicContent.innerHTML = `
+                <div class="w-full flex flex-col items-center">
+                    <p class="text-md font-medium text-indigo-500 mb-4">Match the word:</p>
+                    <h2 class="text-3xl font-extrabold text-gray-800 mb-6">${correctAnswer.word}</h2>
+                    <div id="quiz-options" class="w-full">
+                        ${optionsHtml}
+                    </div>
+                </div>
+            `;
+            actionButton.classList.add('hidden');
+
+            document.querySelectorAll('.quiz-option').forEach(button => {
+                button.onclick = (e) => handleRecognitionAnswer(e.target, correctAnswer.hebrew);
+            });
+        }
+
+        function handleRecognitionAnswer(target, correctAnswerHebrew) {
+            document.querySelectorAll('.quiz-option').forEach(btn => btn.disabled = true);
+            const isCorrect = target.getAttribute('data-answer') === correctAnswerHebrew;
+
+            if (isCorrect) {
+                target.classList.replace('bg-indigo-100', 'bg-green-500');
+                target.classList.replace('text-indigo-700', 'text-white');
+                updateScore(STAGE_CONFIG[game.stage].points + STAGE_CONFIG[game.stage].bonus);
+                flashFeedback(document.getElementById('game-card'), true);
+                setTimeout(nextStage, 1000);
+            } else {
+                target.classList.replace('bg-indigo-100', 'bg-red-500');
+                target.classList.replace('text-indigo-700', 'text-white');
+                loseLife();
+                
+                document.querySelectorAll('.quiz-option').forEach(btn => {
+                    if (btn.getAttribute('data-answer') === correctAnswerHebrew) {
+                        btn.classList.replace('bg-indigo-100', 'bg-green-200');
+                        btn.classList.add('ring-4', 'ring-green-500');
+                    }
+                });
+
+                setTimeout(nextStage, 1500);
+            }
+        }
+
+        function renderProductionTyping() {
+            const wordData = VOCABULARY[game.currentWordIndex];
+            const placeholderText = showHebrew ? `Type the English word for: ${wordData.hebrew}` : 'Type the word here...';
+
+            dynamicContent.innerHTML = `
+                <div class="w-full flex flex-col items-center">
+                    <p class="text-md font-medium text-indigo-500 mb-4">Spell the word:</p>
+                    <p dir="rtl" class="text-xl font-bold text-gray-700 mb-6">${placeholderText}</p>
+                    <input type="text" id="typing-input" class="w-full max-w-sm p-3 text-center text-xl border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none transition" placeholder="..." autofocus />
+                    <p id="typing-feedback" class="mt-4 text-sm font-medium h-6"></p>
+                </div>
+            `;
+            actionButton.textContent = "Check Answer";
+            actionButton.onclick = handleProductionAnswer;
+            actionButton.classList.remove('hidden');
+
+            document.getElementById('typing-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    handleProductionAnswer();
+                }
+            });
+            document.getElementById('typing-input').focus();
+        }
+
+        function handleProductionAnswer() {
+            const wordData = VOCABULARY[game.currentWordIndex];
+            const inputElement = document.getElementById('typing-input');
+            const feedbackElement = document.getElementById('typing-feedback');
+            const submittedText = inputElement.value.toUpperCase().trim();
+            const correctWord = wordData.word;
+
+            inputElement.disabled = true;
+            actionButton.disabled = true;
+
+            if (submittedText === correctWord) {
+                feedbackElement.textContent = "Correct! Great spelling!";
+                feedbackElement.classList.remove('text-red-500');
+                feedbackElement.classList.add('text-green-500');
+                flashFeedback(document.getElementById('game-card'), true);
+                updateScore(STAGE_CONFIG[game.stage].points + STAGE_CONFIG[game.stage].bonus);
+                setTimeout(nextWord, 1000); 
+            } else {
+                feedbackElement.innerHTML = `Wrong. Correct answer was: <span class="font-extrabold">${correctWord}</span>`;
+                feedbackElement.classList.remove('text-green-500');
+                feedbackElement.classList.add('text-red-500');
+                flashFeedback(document.getElementById('game-card'), false);
+                loseLife();
+                setTimeout(nextWord, 2000);
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+
+        toggleHebrewBtn.onclick = () => {
+            showHebrew = !showHebrew;
+            hebrewStatusSpan.textContent = showHebrew ? "ON" : "OFF";
+            toggleHebrewBtn.classList.toggle('bg-gray-100');
+            toggleHebrewBtn.classList.toggle('bg-yellow-100');
+            
+            // Re-render current stage to apply change instantly
+            if (game.mode === 'PRACTICE') {
+                renderFlashcardPractice();
+            } else if (game.mode === 'GAME') {
+                if (game.stage === 0 || game.stage === 2) {
+                    renderFlashcard();
+                } else if (game.stage === 3) {
+                    renderProductionTyping();
+                }
+            }
+        };
+
+        goToMenuBtn.onclick = renderModeSelection;
+
+        // --- INITIALIZATION ---
+        window.onload = () => {
+             // Mock Firebase/Auth initialization since we removed the actual imports
+            setTimeout(() => {
+                document.getElementById('loading-status').textContent = "App ready! (Speech/AI features disabled for embedding)";
+                shuffle(VOCABULARY);
+                renderModeSelection(); 
+            }, 500);
+        };
+    </script>
+</body>
+</html>
