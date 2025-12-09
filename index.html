@@ -3,17 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Explorer - Optimized for Embed</title>
+    <title>English Explorer - Complete Suite</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Minimal custom styling for compatibility */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         body {
-            font-family: ui-sans-serif, system-ui, sans-serif;
+            font-family: 'Inter', sans-serif;
             background-color: #f0f4f8;
             padding: 16px;
             box-sizing: border-box;
         }
+        
+        /* --- General Game Styles --- */
         .game-card {
             background-color: #ffffff;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
@@ -25,515 +27,627 @@
         .btn-primary:hover {
             background-color: #4338ca;
         }
-        /* Custom Loader for minimal external dependencies */
+        
+        /* --- Practice Mode Specifics --- */
+        .btn-practice-next {
+            background-color: #06b6d4; /* Cyan 500 */
+            box-shadow: 0 10px 15px -3px rgba(6, 182, 212, 0.5);
+            animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .btn-practice-next:hover { background-color: #0891b2; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+
+        /* --- Flashcard Flip Styles --- */
+        .perspective-1000 { perspective: 1000px; }
+        .transform-style-preserve-3d { transform-style: preserve-3d; }
+        .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg); }
+        .rtl { direction: rtl; }
+
+        /* --- Drag and Drop Styles (Level 3) --- */
+        .drag-item { cursor: grab; user-select: none; transition: all 0.2s; }
+        .drag-item:hover { opacity: 0.9; transform: translateY(-1px); }
+        .blank {
+            display: inline-block;
+            min-width: 120px;
+            height: 40px;
+            border-bottom: 2px solid #3b82f6;
+            background-color: #eff6ff;
+            text-align: center;
+            line-height: 40px;
+            margin: 0 4px;
+            border-radius: 6px;
+            color: #1e40af;
+            font-weight: 600;
+        }
+        .blank.dragover { border: 2px dashed #10b981; background-color: #d1fae5; }
+        .blank.filled { border-bottom: none; background-color: #dcfce7; color: #15803d; }
+
+        /* --- Loader --- */
         .loader {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #4f46e5;
             border-radius: 50%;
-            width: 20px;
-            height: 20px;
+            width: 24px;
+            height: 24px;
             animation: spin 1s linear infinite;
             display: inline-block;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* --- Modal Styles --- */
+        .modal { transition: opacity 0.3s ease-in-out; pointer-events: none; opacity: 0; }
+        .modal.open { opacity: 1; pointer-events: auto; }
+        
+        /* Layout Fixes */
+        #game-container { min-height: 600px; max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; }
+        #dynamic-content { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; width: 100%; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
 
-    <div id="game-container" class="max-w-4xl mx-auto w-full flex-grow flex flex-col items-center justify-center">
-        <!-- Header: Score and Mode Control -->
-        <header class="w-full mb-4 flex justify-between items-center p-3 bg-white rounded-xl shadow-lg">
-            <div id="score-lives-wrapper" class="flex">
-                <div id="score-display" class="flex items-center text-sm font-bold text-gray-700 hidden">
-                    <span class="text-yellow-500 mr-1">⭐</span>
-                    Score: <span id="score" class="ml-1 text-indigo-600">0</span>
+    <div id="game-container">
+        <!-- Header -->
+        <header class="w-full mb-4 flex justify-between items-center p-3 bg-white rounded-xl shadow-lg z-10 relative">
+            <div class="flex items-center">
+                <div id="score-display" class="flex items-center text-sm font-bold text-gray-700 hidden mr-4">
+                    <span class="text-yellow-500 mr-1">⭐</span> <span id="score">0</span>
                 </div>
-                <div id="lives-display" class="flex items-center text-sm font-bold text-gray-700 ml-4 hidden">
-                    <span class="text-red-500 mr-1">❤️</span>
-                    Lives: <span id="lives" class="ml-1 text-red-500">3</span>
+                <div id="lives-display" class="flex items-center text-sm font-bold text-gray-700 hidden">
+                    <span class="text-red-500 mr-1">❤️</span> <span id="lives">3</span>
                 </div>
             </div>
             
-            <div class="flex items-center">
-                <button id="toggle-hebrew" class="p-2 bg-gray-100 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-200 transition">
-                    Hebrew: <span id="hebrew-status">ON</span>
-                </button>
-                <button id="go-to-menu-btn" class="p-2 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition ml-2 hidden">
-                    Main Menu
-                </button>
+            <div class="flex items-center space-x-2">
+                <button id="instructions-btn" class="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-lg">❓</button>
+                
+                <!-- Practice Toggles -->
+                <button id="toggle-practice-side" class="hidden p-2 bg-purple-100 text-purple-700 rounded-lg text-xs font-bold">Start: Eng</button>
+                <button id="toggle-images" class="hidden p-2 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold">Pics: On</button>
+                <button id="toggle-sentences" class="hidden p-2 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold">Sent: On</button>
+                
+                <!-- Game Toggle -->
+                <button id="toggle-hebrew" class="hidden p-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold">Hide Hebrew</button>
+                
+                <button id="go-to-menu-btn" class="hidden p-2 bg-red-500 text-white rounded-lg text-xs font-bold hover:bg-red-600">Menu</button>
             </div>
         </header>
 
-        <!-- Game Card Area -->
-        <main id="game-card" class="game-card w-full max-w-lg p-6 rounded-2xl text-center flex flex-col items-center min-h-[350px]">
-            <h1 class="text-2xl font-extrabold text-indigo-700 mb-4">English Explorer!</h1>
-            <p id="game-instructions" class="text-gray-600 mb-6 text-md">Loading...</p>
+        <!-- Main Card -->
+        <main id="game-card" class="game-card w-full p-6 rounded-2xl text-center flex flex-col items-center relative flex-grow overflow-y-auto">
+            <h1 id="app-title" class="text-2xl font-extrabold text-indigo-700 mb-2">English Explorer</h1>
+            <p id="game-instructions" class="text-gray-500 mb-6 text-sm">Select a mode to begin.</p>
 
-            <!-- Dynamic Content Area -->
-            <div id="dynamic-content" class="w-full flex-grow flex flex-col justify-center items-center">
-                <div class="text-center">
-                    <div class="loader text-indigo-500 text-4xl mb-4"></div>
-                    <p class="mt-4 text-gray-500" id="loading-status">Starting up...</p>
+            <div id="dynamic-content">
+                <!-- Content injected via JS -->
+                <div class="text-center mt-10">
+                    <div class="loader"></div>
+                    <p class="mt-2 text-gray-400">Loading...</p>
                 </div>
             </div>
 
-            <!-- Action Button -->
-            <button id="action-button" class="btn-primary w-full max-w-xs py-3 mt-6 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition hidden">
-                Start Learning
+            <!-- Global Action Button (Next/Start/Check) -->
+            <button id="action-button" class="mt-6 w-full max-w-xs py-3 text-white font-bold rounded-xl shadow-lg transition hidden btn-primary">
+                Action
             </button>
         </main>
+        
+        <!-- Footer Note -->
+        <div class="mt-6 text-center text-xs text-gray-400">
+            Current Session ID: <span id="session-id">...</span>
+        </div>
     </div>
 
-    <!-- Minimal Modal for messages -->
-    <div id="game-over-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-        <div class="bg-white p-6 rounded-xl shadow-2xl text-center max-w-md w-full">
-            <span id="modal-icon" class="text-5xl mb-4 block"></span>
+    <!-- Universal Modal -->
+    <div id="game-modal" class="modal fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl text-center max-w-md w-full transform scale-100 transition-transform">
+            <div id="modal-icon" class="text-5xl mb-4"></div>
             <h2 id="modal-title" class="text-2xl font-bold text-gray-800 mb-2"></h2>
-            <p id="modal-message" class="text-md text-gray-600 mb-4"></p>
-            <button id="restart-game-btn" class="btn-primary w-full py-2 text-white font-bold rounded-xl hover:shadow-xl">
-                Restart Lesson
+            <div id="modal-body" class="text-gray-600 mb-6 text-sm text-left"></div>
+            <button id="modal-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition">
+                Continue
             </button>
         </div>
     </div>
 
-
     <script>
-        // --- GAME DATA ---
+        // --- CONFIG & DATA ---
+        const API_KEY = ""; // System provides key
         const VOCABULARY = [
-            { word: "AIM", hebrew: "מטרה / לכוון" },
-            { word: "DEMAND", hebrew: "דרישה / לדרוש" },
-            { word: "HEAD", hebrew: "ראש / לנווט" },
-            { word: "OPTION", hebrew: "אפשרות" },
-            { word: "ALLOW", hebrew: "לאפשר" },
-            { word: "PROPERTY", hebrew: "רכוש / נכס" },
-            { word: "TEMPORARY", hebrew: "זמני" },
-            { word: "PERMANENT", hebrew: "קבוע" },
-            { word: "ADAPT", hebrew: "להסתגל" },
-            { word: "ATTACK", hebrew: "לתקוף / התקפה" },
-            { word: "COMMUNICATE", hebrew: "לתקשר" },
-            { word: "RELEASE", hebrew: "לשחרר" },
-            { word: "AMAZING", hebrew: "מדהים" },
-            { word: "CONFIDENT", hebrew: "בטוח בעצמו" },
-            { word: "EXPENSIVE", hebrew: "יקר" },
+            { word: "AIM", hebrew: "מטרה / לכוון", exampleSentence: "His main aim was to finish the race.", icon: "🎯", imageUrl: "https://placehold.co/100x100/4f46e5/ffffff?text=TARGET" },
+            { word: "DEMAND", hebrew: "דרישה / לדרוש", exampleSentence: "The workers demanded a higher salary.", icon: "✊" },
+            { word: "HEAD", hebrew: "ראש / לנווט", exampleSentence: "The ship headed towards the north.", icon: "🧭" },
+            { word: "OPTION", hebrew: "אפשרות", exampleSentence: "We have two options: stay or go.", icon: "🔀" },
+            { word: "ALLOW", hebrew: "לאפשר", exampleSentence: "They don't allow food in the library.", icon: "✅" },
+            { word: "PROPERTY", hebrew: "רכוש / נכס", exampleSentence: "The house is private property.", icon: "🏡" },
+            { word: "TEMPORARY", hebrew: "זמני", exampleSentence: "This is only a temporary fix.", icon: "⏳" },
+            { word: "PERMANENT", hebrew: "קבוע", exampleSentence: "She made a permanent move to Canada.", icon: "🔒" },
+            { word: "ADAPT", hebrew: "להסתגל", exampleSentence: "It took time to adapt to the new climate.", icon: "🦎" },
+            { word: "ATTACK", hebrew: "לתקוף / התקפה", exampleSentence: "They launched a surprise attack.", icon: "⚔️" },
+            { word: "COMMUNICATE", hebrew: "לתקשר", exampleSentence: "It is essential to communicate clearly.", icon: "💬" },
+            { word: "RELEASE", hebrew: "לשחרר", exampleSentence: "The government released the statement.", icon: "🕊️" },
+            { word: "AMAZING", hebrew: "מדהים", exampleSentence: "What an amazing view!", icon: "✨" },
+            { word: "CONFIDENT", hebrew: "בטוח בעצמו", exampleSentence: "She felt confident about the exam.", icon: "💪" },
+            { word: "EXPENSIVE", hebrew: "יקר", exampleSentence: "That car is too expensive for me.", icon: "💰" },
         ];
 
-        // --- GAME STATE ---
-        let game = {
+        // --- STATE MANAGEMENT ---
+        let state = {
+            view: 'MENU', // MENU, PRACTICE, GAME, LEVEL3
             score: 0,
             lives: 3,
-            currentWordIndex: 0,
-            stage: 0,
-            isGameOver: false,
-            mode: 'SELECTION' // SELECTION, PRACTICE, or GAME
+            wordIndex: 0,
+            gameStage: 0, // 0:Pres, 1:Quiz, 2:Review, 3:Type
+            practice: { flipped: false, startHebrew: false, showImages: true, showSentences: true },
+            level3: { dragComplete: false, sentenceWritten: false }
         };
 
-        const STAGE_CONFIG = [
-            { name: "Presentation", instructions: "Stage 1/4: Learn the new word.", points: 0 },
-            { name: "Recognition (Quiz)", instructions: "Stage 2/4: Choose the correct Hebrew translation.", points: 10, bonus: 5, isGraded: true },
-            { name: "Repetition (Review)", instructions: "Stage 3/4: Review before the final test.", points: 0 },
-            { name: "Production (Typing)", instructions: "Stage 4/4: Type the word correctly in English.", points: 20, bonus: 10, isGraded: true },
+        const GAME_STAGES = [
+            { name: "Presentation", instructions: "Stage 1/4: Learn the word." },
+            { name: "Recognition", instructions: "Stage 2/4: Select the correct translation.", points: 10 },
+            { name: "Review", instructions: "Stage 3/4: Quick review." },
+            { name: "Production", instructions: "Stage 4/4: Type the English word.", points: 20 }
         ];
-        
-        // --- NOTE: Stage 1 (Reading Practice) is REMOVED to avoid the microphone security issue. ---
 
-
-        // --- UI & UTILITY FUNCTIONS (Simplified) ---
-        const scoreDisplay = document.getElementById('score');
-        const livesDisplay = document.getElementById('lives');
-        const gameInstructions = document.getElementById('game-instructions');
-        const dynamicContent = document.getElementById('dynamic-content');
-        const actionButton = document.getElementById('action-button');
-        const toggleHebrewBtn = document.getElementById('toggle-hebrew');
-        const hebrewStatusSpan = document.getElementById('hebrew-status');
-        const gameOverModal = document.getElementById('game-over-modal');
-        const goToMenuBtn = document.getElementById('go-to-menu-btn');
-        const scoreDisplayWrapper = document.getElementById('score-display');
-        const livesDisplayWrapper = document.getElementById('lives-display');
-        
-        const modalIcon = document.getElementById('modal-icon');
-        const modalTitle = document.getElementById('modal-title');
-        const modalMessage = document.getElementById('modal-message');
-
-        let showHebrew = true;
-
-
-        function shuffle(array) {
-            for (let i = array.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]];
+        // --- DOM ELEMENTS ---
+        const els = {
+            container: document.getElementById('dynamic-content'),
+            btn: document.getElementById('action-button'),
+            scoreDisplay: document.getElementById('score-display'),
+            livesDisplay: document.getElementById('lives-display'),
+            score: document.getElementById('score'),
+            lives: document.getElementById('lives'),
+            instr: document.getElementById('game-instructions'),
+            modal: document.getElementById('game-modal'),
+            toggles: {
+                hebrew: document.getElementById('toggle-hebrew'),
+                practice: document.getElementById('toggle-practice-side'),
+                images: document.getElementById('toggle-images'),
+                sentences: document.getElementById('toggle-sentences'),
+                menu: document.getElementById('go-to-menu-btn')
             }
+        };
+
+        // --- CORE RENDERER ---
+        function render() {
+            // Update Header Visibility
+            els.toggles.menu.classList.toggle('hidden', state.view === 'MENU');
+            els.toggles.practice.classList.toggle('hidden', state.view !== 'PRACTICE');
+            els.toggles.images.classList.toggle('hidden', state.view !== 'PRACTICE');
+            els.toggles.sentences.classList.toggle('hidden', state.view !== 'PRACTICE');
+            els.toggles.hebrew.classList.toggle('hidden', state.view !== 'GAME');
+            els.scoreDisplay.classList.toggle('hidden', state.view !== 'GAME');
+            els.livesDisplay.classList.toggle('hidden', state.view !== 'GAME');
+
+            els.score.textContent = state.score;
+            els.lives.textContent = state.lives;
+
+            // Route View
+            if (state.view === 'MENU') renderMenu();
+            else if (state.view === 'PRACTICE') renderPractice();
+            else if (state.view === 'GAME') renderGame();
+            else if (state.view === 'LEVEL3') renderLevel3();
         }
 
-        function updateUI() {
-            scoreDisplay.textContent = game.score;
-            livesDisplay.textContent = game.lives;
+        // --- VIEWS ---
+
+        function renderMenu() {
+            els.instr.textContent = "Choose your path to mastery.";
+            els.btn.classList.add('hidden'); // Hide global button
             
-            if (game.mode === 'GAME') {
-                const currentStageIndex = game.stage;
-                gameInstructions.textContent = STAGE_CONFIG[currentStageIndex].instructions;
-                scoreDisplayWrapper.classList.remove('hidden');
-                livesDisplayWrapper.classList.remove('hidden');
-                goToMenuBtn.classList.remove('hidden');
-            } else if (game.mode === 'PRACTICE') {
-                gameInstructions.textContent = "Practice Mode: Flashcard Review";
-                scoreDisplayWrapper.classList.add('hidden');
-                livesDisplayWrapper.classList.add('hidden');
-                goToMenuBtn.classList.remove('hidden');
-            } else { // SELECTION
-                scoreDisplayWrapper.classList.add('hidden');
-                livesDisplayWrapper.classList.add('hidden');
-                goToMenuBtn.classList.add('hidden');
-            }
-        }
-
-        function flashFeedback(element, isCorrect) {
-            const colorClass = isCorrect ? 'bg-green-100' : 'bg-red-100';
-            element.classList.add(colorClass);
-            setTimeout(() => {
-                element.classList.remove(colorClass);
-            }, 500);
-        }
-
-        function loseLife() {
-            game.lives--;
-            updateUI();
-            flashFeedback(document.getElementById('game-card'), false);
-            if (game.lives <= 0) {
-                game.isGameOver = true;
-                gameOver('lives_out');
-            }
-        }
-
-        function alertMessage(title, message) {
-            modalIcon.textContent = '💡';
-            modalTitle.textContent = title;
-            modalMessage.innerHTML = message;
-            
-            document.getElementById('restart-game-btn').textContent = 'Continue'; 
-            document.getElementById('restart-game-btn').onclick = () => {
-                gameOverModal.classList.add('hidden');
-            };
-
-            gameOverModal.classList.remove('hidden');
-        }
-        
-        function updateScore(points) {
-            if (game.isGameOver || game.mode !== 'GAME') return;
-            game.score += points;
-            updateUI();
-            // NOTE: Firestore removed for embedding, score is session-based.
-        }
-
-        // --- MODE SELECTION ---
-
-        function renderModeSelection() {
-            game.mode = 'SELECTION';
-            gameInstructions.textContent = "Select a mode to begin your English vocabulary session.";
-            actionButton.classList.add('hidden');
-            gameOverModal.classList.add('hidden');
-            
-            updateUI(); 
-
-            dynamicContent.innerHTML = `
-                <div class="flex flex-col items-center w-full max-w-sm">
-                    <h2 class="text-xl font-bold text-gray-800 mb-6">Choose Your Path</h2>
+            els.container.innerHTML = `
+                <div class="flex flex-col gap-4 w-full max-w-sm">
+                    <button onclick="startPractice()" class="p-4 bg-indigo-50 border-2 border-indigo-200 rounded-xl hover:bg-indigo-100 hover:shadow-md transition text-left flex items-center">
+                        <span class="text-3xl mr-4">📇</span>
+                        <div>
+                            <h3 class="font-bold text-indigo-800">Practice Mode</h3>
+                            <p class="text-xs text-indigo-600">Stress-free flashcards</p>
+                        </div>
+                    </button>
                     
-                    <button id="start-practice-btn" class="w-full py-3 my-2 bg-indigo-500 text-white font-bold rounded-xl shadow-md hover:bg-indigo-600 transition text-lg">
-                        Practice Mode (Flashcards)
+                    <button onclick="startGame()" class="p-4 bg-green-50 border-2 border-green-200 rounded-xl hover:bg-green-100 hover:shadow-md transition text-left flex items-center">
+                        <span class="text-3xl mr-4">🎮</span>
+                        <div>
+                            <h3 class="font-bold text-green-800">Game Mode</h3>
+                            <p class="text-xs text-green-600">Quiz & Scoring</p>
+                        </div>
                     </button>
-                    <p class="text-xs text-gray-500 mb-4 text-center">Study words at your own pace. No score or lives lost.</p>
 
-                    <div class="w-full h-px bg-gray-200 my-2"></div>
-
-                    <button id="start-game-btn" class="w-full py-3 my-2 bg-green-500 text-white font-bold rounded-xl shadow-md hover:bg-green-600 transition text-lg">
-                        Game Mode (Quiz + Scoring)
+                    <button onclick="startLevel3()" class="p-4 bg-purple-50 border-2 border-purple-200 rounded-xl hover:bg-purple-100 hover:shadow-md transition text-left flex items-center">
+                        <span class="text-3xl mr-4">🧠</span>
+                        <div>
+                            <h3 class="font-bold text-purple-800">Challenge Mode (Level 3)</h3>
+                            <p class="text-xs text-purple-600">Drag & Drop + Sentence Writing</p>
+                        </div>
                     </button>
-                    <p class="text-xs text-gray-500 text-center">Test your knowledge through all 4 stages. Get a high score!</p>
                 </div>
             `;
-            
-            document.getElementById('start-practice-btn').onclick = startPracticeMode;
-            document.getElementById('start-game-btn').onclick = startGameMode;
         }
 
-        // --- PRACTICE MODE LOGIC ---
-        function startPracticeMode() {
-            game.mode = 'PRACTICE';
-            game.currentWordIndex = 0;
+        // --- PRACTICE MODE ---
+        function startPractice() {
+            state.view = 'PRACTICE';
+            state.wordIndex = 0;
+            state.practice.flipped = false;
             shuffle(VOCABULARY);
-            updateUI();
-            renderFlashcardPractice();
+            render();
         }
 
-        function renderFlashcardPractice() {
-            if (game.currentWordIndex >= VOCABULARY.length) {
-                return nextPracticeWord(); // Handles completion
-            }
-
-            const wordData = VOCABULARY[game.currentWordIndex];
-            
-            let hebrewDisplay = showHebrew ? `<p dir="rtl" class="text-lg text-gray-500 mt-2">${wordData.hebrew}</p>` : '';
-
-            dynamicContent.innerHTML = `
-                <div class="flex flex-col items-center">
-                    <p class="text-md font-medium text-indigo-500 mb-4">Word ${game.currentWordIndex + 1} of ${VOCABULARY.length}</p>
-                    <span class="text-7xl mb-4">📖</span>
-                    <h2 class="text-4xl font-extrabold text-gray-800 tracking-wider mb-2">${wordData.word}</h2>
-                    ${hebrewDisplay}
-                </div>
-            `;
-
-            actionButton.textContent = "Next Word";
-            actionButton.onclick = nextPracticeWord;
-            actionButton.classList.remove('hidden');
-        }
-
-        function nextPracticeWord() {
-            game.currentWordIndex++;
-            if (game.currentWordIndex >= VOCABULARY.length) {
-                game.currentWordIndex = 0;
-                alertMessage("Practice Complete!", `You have reviewed all ${VOCABULARY.length} words. Restarting practice.`);
-                shuffle(VOCABULARY);
-            }
-            renderFlashcardPractice();
-        }
-
-        // --- GAME MODE LOGIC ---
-
-        function startGameMode() {
-            game.mode = 'GAME';
-            restartGameMode();
-            updateUI(); 
-        }
-        
-        function gameOver(status = 'lives_out') {
-            game.isGameOver = true;
-            actionButton.classList.add('hidden');
-
-            if (status === 'completed') {
-                modalIcon.textContent = '🏆';
-                modalTitle.textContent = 'Lesson Complete!';
-                modalMessage.innerHTML = `You mastered all words! Final score: <span class="text-indigo-600 font-extrabold">${game.score}</span> points.`;
-            } else { // lives_out
-                modalIcon.textContent = '💀';
-                modalTitle.textContent = 'Game Over!';
-                modalMessage.innerHTML = `You ran out of lives! Final score: <span class="text-indigo-600 font-extrabold">${game.score}</span> points.`;
-            }
-
-            document.getElementById('restart-game-btn').textContent = 'Restart Lesson';
-            document.getElementById('restart-game-btn').onclick = restartGameMode; 
-            
-            gameOverModal.classList.remove('hidden');
-        }
-
-        function restartGameMode() {
-            gameOverModal.classList.add('hidden');
-            game.score = 0;
-            game.lives = 3;
-            game.currentWordIndex = 0;
-            game.stage = 0;
-            game.isGameOver = false;
-            shuffle(VOCABULARY); 
-            updateUI();
-            nextWord();
-        }
-
-        function nextStage() {
-            game.stage++;
-            if (game.stage >= STAGE_CONFIG.length) {
-                game.stage = 0; 
-                game.currentWordIndex++;
-            }
-
-            if (game.currentWordIndex >= VOCABULARY.length) {
-                gameOver('completed');
+        function renderPractice() {
+            if (state.wordIndex >= VOCABULARY.length) {
+                showModal('Practice Complete!', 'Restarting deck...', () => startPractice());
                 return;
             }
-
-            updateUI();
             
-            switch (game.stage) {
-                case 0: // Presentation
-                case 2: // Repetition (Review)
-                    renderFlashcard();
-                    break;
-                case 1: // Recognition
-                    renderRecognitionQuiz();
-                    break;
-                case 3: // Production
-                    renderProductionTyping();
-                    break;
-            }
-        }
+            const w = VOCABULARY[state.wordIndex];
+            els.instr.textContent = "Practice Mode: Tap card to flip.";
+            
+            // Determine sides
+            const startEng = !state.practice.startHebrew;
+            const front = startEng ? w.word : w.hebrew;
+            const back = startEng ? w.hebrew : w.word;
+            const icon = w.imageUrl && state.practice.showImages ? `<img src="${w.imageUrl}" class="h-20 mx-auto rounded border" onerror="this.remove()">` : `<div class="text-6xl mb-4">${w.icon}</div>`;
+            const sent = state.practice.showSentences && w.exampleSentence ? `<p class="text-sm text-gray-500 mt-4 italic">"${w.exampleSentence}"</p>` : '';
 
-        function nextWord() {
-            game.stage = 0; 
-            updateUI();
-            renderFlashcard();
-        }
-
-        // --- STAGE RENDERING AND LOGIC ---
-
-        function renderFlashcard() {
-            const wordData = VOCABULARY[game.currentWordIndex];
-            const stageName = STAGE_CONFIG[game.stage].name;
-
-            let hebrewDisplay = showHebrew ? `<p dir="rtl" class="text-lg text-gray-500 mt-2">${wordData.hebrew}</p>` : '';
-
-            dynamicContent.innerHTML = `
-                <div class="flex flex-col items-center">
-                    <p class="text-md font-medium text-indigo-500 mb-4">${stageName}</p>
-                    <span class="text-7xl mb-4">📚</span>
-                    <h2 class="text-4xl font-extrabold text-gray-800 tracking-wider mb-2">${wordData.word}</h2>
-                    ${hebrewDisplay}
-                </div>
-            `;
-
-            actionButton.textContent = "Next Stage";
-            actionButton.onclick = nextStage;
-            actionButton.classList.remove('hidden');
-        }
-
-        function renderRecognitionQuiz() {
-            const correctAnswer = VOCABULARY[game.currentWordIndex];
-            let incorrectAnswers = [];
-            let availableVocab = VOCABULARY.filter((w, i) => i !== game.currentWordIndex);
-            shuffle(availableVocab);
-            incorrectAnswers = availableVocab.slice(0, 3);
-
-            const options = [...incorrectAnswers.map(w => w.hebrew), correctAnswer.hebrew];
-            shuffle(options);
-
-            const optionsHtml = options.map((hebrew) => `
-                <button dir="rtl" data-answer="${hebrew}" class="quiz-option w-full py-3 my-2 bg-indigo-100 text-indigo-700 font-semibold rounded-lg hover:bg-indigo-200 transition">
-                    ${hebrew}
-                </button>
-            `).join('');
-
-            dynamicContent.innerHTML = `
-                <div class="w-full flex flex-col items-center">
-                    <p class="text-md font-medium text-indigo-500 mb-4">Match the word:</p>
-                    <h2 class="text-3xl font-extrabold text-gray-800 mb-6">${correctAnswer.word}</h2>
-                    <div id="quiz-options" class="w-full">
-                        ${optionsHtml}
+            els.container.innerHTML = `
+                <div class="w-full max-w-sm h-64 perspective-1000 cursor-pointer" onclick="flipCard()">
+                    <div id="flashcard" class="relative w-full h-full transform-style-preserve-3d transition-transform duration-500 ${state.practice.flipped ? 'rotate-y-180' : ''}">
+                        <!-- Front -->
+                        <div class="absolute inset-0 backface-hidden bg-white border-2 border-indigo-100 rounded-2xl flex flex-col justify-center items-center shadow-lg p-4">
+                            <span class="text-xs font-bold text-indigo-400 mb-2 uppercase tracking-widest">${startEng ? 'English' : 'Hebrew'}</span>
+                            ${state.practice.showImages ? icon : ''}
+                            <h2 class="text-3xl font-extrabold text-gray-800 ${!startEng ? 'rtl' : ''}">${front}</h2>
+                            ${sent}
+                            <p class="text-xs text-gray-300 mt-auto">Tap to flip</p>
+                        </div>
+                        <!-- Back -->
+                        <div class="absolute inset-0 backface-hidden rotate-y-180 bg-indigo-50 border-2 border-indigo-200 rounded-2xl flex flex-col justify-center items-center shadow-lg p-4">
+                            <span class="text-xs font-bold text-indigo-400 mb-2 uppercase tracking-widest">${startEng ? 'Translation' : 'English'}</span>
+                            <h2 class="text-3xl font-extrabold text-indigo-700 ${startEng ? 'rtl' : ''}">${back}</h2>
+                        </div>
                     </div>
                 </div>
             `;
-            actionButton.classList.add('hidden');
 
-            document.querySelectorAll('.quiz-option').forEach(button => {
-                button.onclick = (e) => handleRecognitionAnswer(e.target, correctAnswer.hebrew);
-            });
+            configureButton("Next Word", () => {
+                state.wordIndex++;
+                state.practice.flipped = false;
+                render();
+            }, 'btn-practice-next');
         }
 
-        function handleRecognitionAnswer(target, correctAnswerHebrew) {
-            document.querySelectorAll('.quiz-option').forEach(btn => btn.disabled = true);
-            const isCorrect = target.getAttribute('data-answer') === correctAnswerHebrew;
+        function flipCard() {
+            state.practice.flipped = !state.practice.flipped;
+            document.getElementById('flashcard').classList.toggle('rotate-y-180');
+        }
 
-            if (isCorrect) {
-                target.classList.replace('bg-indigo-100', 'bg-green-500');
-                target.classList.replace('text-indigo-700', 'text-white');
-                updateScore(STAGE_CONFIG[game.stage].points + STAGE_CONFIG[game.stage].bonus);
-                flashFeedback(document.getElementById('game-card'), true);
-                setTimeout(nextStage, 1000);
+        // --- GAME MODE ---
+        function startGame() {
+            state.view = 'GAME';
+            state.score = 0;
+            state.lives = 3;
+            state.wordIndex = 0;
+            state.gameStage = 0;
+            shuffle(VOCABULARY);
+            render();
+        }
+
+        function renderGame() {
+            if (state.lives <= 0) return endGame('lost');
+            if (state.wordIndex >= VOCABULARY.length) return endGame('won');
+
+            const w = VOCABULARY[state.wordIndex];
+            const stage = GAME_STAGES[state.gameStage];
+            els.instr.textContent = stage.instructions;
+
+            let html = '';
+            
+            if (state.gameStage === 0 || state.gameStage === 2) {
+                // Presentation / Review
+                html = `
+                    <div class="text-center py-8">
+                        <div class="text-6xl mb-4">${w.icon}</div>
+                        <h2 class="text-4xl font-bold text-gray-800 mb-2">${w.word}</h2>
+                        <p class="text-xl text-gray-500 rtl">${w.hebrew}</p>
+                    </div>
+                `;
+                configureButton("Next Stage", advanceGameStage, 'btn-primary');
+            } else if (state.gameStage === 1) {
+                // Quiz
+                const opts = [w, ...getDistractors(w, 3)];
+                shuffle(opts);
+                html = `
+                    <h2 class="text-3xl font-bold text-indigo-700 mb-6">${w.word}</h2>
+                    <div class="grid grid-cols-1 gap-3 w-full">
+                        ${opts.map(o => `<button onclick="handleQuiz('${o.word}')" class="p-3 bg-white border-2 border-gray-200 rounded-lg hover:border-indigo-500 font-bold rtl text-gray-700 hover:bg-indigo-50 transition">${o.hebrew}</button>`).join('')}
+                    </div>
+                `;
+                els.btn.classList.add('hidden'); // Buttons inside HTML handle action
+            } else if (state.gameStage === 3) {
+                // Typing
+                html = `
+                    <div class="text-6xl mb-4">${w.icon}</div>
+                    <p class="text-xl text-gray-500 rtl mb-4">${w.hebrew}</p>
+                    <input type="text" id="type-input" class="w-full p-3 border-2 border-gray-300 rounded-lg text-center text-xl uppercase mb-2" placeholder="TYPE HERE">
+                `;
+                configureButton("Check Answer", handleTyping, 'btn-primary');
+            }
+
+            els.container.innerHTML = html;
+            if (state.gameStage === 3) document.getElementById('type-input').focus();
+        }
+
+        function advanceGameStage() {
+            state.gameStage++;
+            if (state.gameStage >= 4) {
+                state.gameStage = 0;
+                state.wordIndex++;
+            }
+            render();
+        }
+
+        function handleQuiz(selectedWord) {
+            const currentWord = VOCABULARY[state.wordIndex].word;
+            if (selectedWord === currentWord) {
+                state.score += 10;
+                showFeedback(true);
+                setTimeout(advanceGameStage, 800);
             } else {
-                target.classList.replace('bg-indigo-100', 'bg-red-500');
-                target.classList.replace('text-indigo-700', 'text-white');
-                loseLife();
-                
-                document.querySelectorAll('.quiz-option').forEach(btn => {
-                    if (btn.getAttribute('data-answer') === correctAnswerHebrew) {
-                        btn.classList.replace('bg-indigo-100', 'bg-green-200');
-                        btn.classList.add('ring-4', 'ring-green-500');
-                    }
-                });
-
-                setTimeout(nextStage, 1500);
+                state.lives--;
+                showFeedback(false);
+                if (state.lives > 0) setTimeout(advanceGameStage, 1000);
+                else render();
             }
         }
 
-        function renderProductionTyping() {
-            const wordData = VOCABULARY[game.currentWordIndex];
-            const placeholderText = showHebrew ? `Type the English word for: ${wordData.hebrew}` : 'Type the word here...';
+        function handleTyping() {
+            const input = document.getElementById('type-input');
+            if (input.value.trim().toUpperCase() === VOCABULARY[state.wordIndex].word) {
+                state.score += 20;
+                showFeedback(true);
+                setTimeout(advanceGameStage, 800);
+            } else {
+                state.lives--;
+                showFeedback(false);
+                input.value = '';
+                input.classList.add('border-red-500');
+                if (state.lives <= 0) render();
+            }
+        }
 
-            dynamicContent.innerHTML = `
-                <div class="w-full flex flex-col items-center">
-                    <p class="text-md font-medium text-indigo-500 mb-4">Spell the word:</p>
-                    <p dir="rtl" class="text-xl font-bold text-gray-700 mb-6">${placeholderText}</p>
-                    <input type="text" id="typing-input" class="w-full max-w-sm p-3 text-center text-xl border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none transition" placeholder="..." autofocus />
-                    <p id="typing-feedback" class="mt-4 text-sm font-medium h-6"></p>
+        function getDistractors(correct, count) {
+            return VOCABULARY.filter(w => w !== correct).sort(() => 0.5 - Math.random()).slice(0, count);
+        }
+
+        function endGame(result) {
+            const title = result === 'won' ? '🏆 Completed!' : '💀 Game Over';
+            const msg = `Final Score: ${state.score}`;
+            showModal(title, msg, () => {
+                state.view = 'MENU';
+                render();
+            });
+        }
+
+        // --- CHALLENGE MODE (LEVEL 3) ---
+        
+        function startLevel3() {
+            state.view = 'LEVEL3';
+            state.level3.dragComplete = false;
+            state.level3.sentenceWritten = false;
+            render();
+        }
+
+        function renderLevel3() {
+            els.instr.textContent = "Advanced Challenge: Use 'TEMPORARY' correctly.";
+            
+            // Hardcoded content for robustness as per plan
+            els.container.innerHTML = `
+                <div class="space-y-8 w-full text-left">
+                    <!-- Task 1 -->
+                    <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                        <h3 class="font-bold text-blue-800 mb-2">Task 1: Complete the Sentence</h3>
+                        <div class="text-lg mb-4 bg-white p-3 rounded border border-blue-200">
+                            "The glue provides a <span id="blank-target" class="blank" ondragover="allowDrop(event)" ondrop="drop(event)" ondragleave="leaveDrag(event)">[Drag Here]</span> fix, but you need a permanent solution later."
+                        </div>
+                        <div class="flex gap-2 flex-wrap" id="drag-bank">
+                            <span id="drag-1" class="drag-item bg-indigo-500 text-white px-3 py-1 rounded shadow" draggable="true" ondragstart="drag(event)">PERMANENT</span>
+                            <span id="drag-2" class="drag-item bg-indigo-500 text-white px-3 py-1 rounded shadow" draggable="true" ondragstart="drag(event)">TEMPORARY</span>
+                            <span id="drag-3" class="drag-item bg-indigo-500 text-white px-3 py-1 rounded shadow" draggable="true" ondragstart="drag(event)">OLD</span>
+                        </div>
+                    </div>
+
+                    <!-- Task 2 -->
+                    <div class="bg-green-50 p-4 rounded-xl border border-green-100">
+                        <h3 class="font-bold text-green-800 mb-2">Task 2: Write a Sentence</h3>
+                        <p class="text-sm text-gray-600 mb-2">Write a sentence using: <strong class="text-green-700">TEMPORARY</strong>.</p>
+                        <textarea id="level3-input" class="w-full p-2 rounded border focus:ring-2 ring-green-300" rows="2" placeholder="Type here..."></textarea>
+                        <button onclick="checkSentenceAI()" id="btn-check-ai" class="mt-2 text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">Check with AI</button>
+                        <div id="ai-feedback" class="hidden mt-2 text-sm p-2 rounded bg-white border"></div>
+                    </div>
                 </div>
             `;
-            actionButton.textContent = "Check Answer";
-            actionButton.onclick = handleProductionAnswer;
-            actionButton.classList.remove('hidden');
 
-            document.getElementById('typing-input').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    handleProductionAnswer();
-                }
-            });
-            document.getElementById('typing-input').focus();
+            // Configure global button for final completion
+            configureButton("Complete Level", finishLevel3, 'btn-primary');
+            els.btn.disabled = true; // Disabled until tasks done
+            els.btn.classList.remove('hidden'); // Ensure visible
         }
 
-        function handleProductionAnswer() {
-            const wordData = VOCABULARY[game.currentWordIndex];
-            const inputElement = document.getElementById('typing-input');
-            const feedbackElement = document.getElementById('typing-feedback');
-            const submittedText = inputElement.value.toUpperCase().trim();
-            const correctWord = wordData.word;
-
-            inputElement.disabled = true;
-            actionButton.disabled = true;
-
-            if (submittedText === correctWord) {
-                feedbackElement.textContent = "Correct! Great spelling!";
-                feedbackElement.classList.remove('text-red-500');
-                feedbackElement.classList.add('text-green-500');
-                flashFeedback(document.getElementById('game-card'), true);
-                updateScore(STAGE_CONFIG[game.stage].points + STAGE_CONFIG[game.stage].bonus);
-                setTimeout(nextWord, 1000); 
-            } else {
-                feedbackElement.innerHTML = `Wrong. Correct answer was: <span class="font-extrabold">${correctWord}</span>`;
-                feedbackElement.classList.remove('text-green-500');
-                feedbackElement.classList.add('text-red-500');
-                flashFeedback(document.getElementById('game-card'), false);
-                loseLife();
-                setTimeout(nextWord, 2000);
-            }
-        }
-
-        // --- EVENT LISTENERS ---
-
-        toggleHebrewBtn.onclick = () => {
-            showHebrew = !showHebrew;
-            hebrewStatusSpan.textContent = showHebrew ? "ON" : "OFF";
-            toggleHebrewBtn.classList.toggle('bg-gray-100');
-            toggleHebrewBtn.classList.toggle('bg-yellow-100');
+        // Drag & Drop Handlers
+        window.drag = (ev) => {
+            ev.dataTransfer.setData("text", ev.target.innerText);
+            ev.dataTransfer.setData("id", ev.target.id);
+        };
+        window.allowDrop = (ev) => {
+            ev.preventDefault();
+            ev.target.classList.add('dragover');
+        };
+        window.leaveDrag = (ev) => {
+            ev.target.classList.remove('dragover');
+        };
+        window.drop = (ev) => {
+            ev.preventDefault();
+            ev.target.classList.remove('dragover');
+            const word = ev.dataTransfer.getData("text");
+            const id = ev.dataTransfer.getData("id");
             
-            // Re-render current stage to apply change instantly
-            if (game.mode === 'PRACTICE') {
-                renderFlashcardPractice();
-            } else if (game.mode === 'GAME') {
-                if (game.stage === 0 || game.stage === 2) {
-                    renderFlashcard();
-                } else if (game.stage === 3) {
-                    renderProductionTyping();
-                }
+            if (word === "TEMPORARY") {
+                ev.target.innerText = word;
+                ev.target.classList.add('filled');
+                document.getElementById(id).style.display = 'none';
+                state.level3.dragComplete = true;
+                checkLevel3Status();
+            } else {
+                showModal("Try Again", "That word doesn't fit the context.");
             }
         };
 
-        goToMenuBtn.onclick = renderModeSelection;
-
-        // --- INITIALIZATION ---
-        window.onload = () => {
-             // Mock Firebase/Auth initialization since we removed the actual imports
-            setTimeout(() => {
-                document.getElementById('loading-status').textContent = "App ready! (Speech/AI features disabled for embedding)";
-                shuffle(VOCABULARY);
-                renderModeSelection(); 
-            }, 500);
+        // AI Check Logic
+        window.checkSentenceAI = async () => {
+            const input = document.getElementById('level3-input').value;
+            const btn = document.getElementById('btn-check-ai');
+            const feedback = document.getElementById('ai-feedback');
+            
+            if(!input) return;
+            
+            btn.disabled = true;
+            btn.innerText = "Checking...";
+            
+            // Simulating AI check for demo stability (replace with real API call if key available)
+            // Real API logic block:
+            
+            const prompt = `Check if the sentence "${input}" uses the word "TEMPORARY" correctly. Also correct grammar. Return JSON: { "correctUsage": boolean, "feedback": string, "correction": string }`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                const data = await response.json();
+                const text = data.candidates[0].content.parts[0].text;
+                // Parse JSON from text (cleanup markdown if needed)
+                const jsonStr = text.replace(/```json|```/g, '').trim();
+                const result = JSON.parse(jsonStr);
+                
+                feedback.classList.remove('hidden');
+                feedback.innerHTML = `<strong>Feedback:</strong> ${result.feedback}<br><strong>Correction:</strong> ${result.correction}`;
+                
+                if (result.correctUsage) {
+                    state.level3.sentenceWritten = true;
+                    feedback.classList.add('text-green-700', 'bg-green-50');
+                    checkLevel3Status();
+                } else {
+                    feedback.classList.add('text-red-700', 'bg-red-50');
+                }
+            } catch (e) {
+                console.error(e);
+                // Fallback for demo if API fails
+                feedback.classList.remove('hidden');
+                feedback.textContent = "AI Service Unavailable. Assuming correct for demo.";
+                state.level3.sentenceWritten = true;
+                checkLevel3Status();
+            }
+            
+            btn.disabled = false;
+            btn.innerText = "Check Again";
         };
+
+        function checkLevel3Status() {
+            if (state.level3.dragComplete && state.level3.sentenceWritten) {
+                els.btn.disabled = false;
+                els.btn.classList.add('animate-bounce');
+            }
+        }
+
+        function finishLevel3() {
+            showModal("Challenge Complete!", "You've mastered the advanced level!", () => {
+                state.view = 'MENU';
+                render();
+            });
+        }
+
+        // --- UTILS ---
+        function configureButton(text, onClick, styleClass) {
+            els.btn.textContent = text;
+            els.btn.onclick = onClick;
+            els.btn.className = `mt-6 w-full max-w-xs py-3 text-white font-bold rounded-xl shadow-lg transition ${styleClass}`;
+            els.btn.disabled = false;
+            els.btn.classList.remove('hidden');
+        }
+
+        function showFeedback(isCorrect) {
+            const card = document.getElementById('game-card');
+            const color = isCorrect ? 'bg-green-100' : 'bg-red-100';
+            card.classList.add(color);
+            setTimeout(() => card.classList.remove(color), 300);
+        }
+
+        function showModal(title, msg, onContinue) {
+            const mTitle = document.getElementById('modal-title');
+            const mBody = document.getElementById('modal-body');
+            const mBtn = document.getElementById('modal-btn');
+            const mIcon = document.getElementById('modal-icon');
+
+            mTitle.textContent = title;
+            mBody.innerHTML = msg; // Allows HTML
+            mIcon.textContent = title.includes('Over') ? '💀' : '🎉';
+            
+            mBtn.onclick = () => {
+                els.modal.classList.remove('open');
+                if (onContinue) onContinue();
+            };
+            
+            els.modal.classList.add('open');
+        }
+
+        function shuffle(arr) { arr.sort(() => Math.random() - 0.5); }
+
+        // --- LISTENERS & INIT ---
+        els.toggles.menu.onclick = () => { state.view = 'MENU'; render(); };
+        
+        els.toggles.practice.onclick = () => { 
+            state.practice.startHebrew = !state.practice.startHebrew; 
+            state.wordIndex = 0; // Restart deck on toggle change
+            els.toggles.practice.textContent = `Start: ${state.practice.startHebrew ? 'Heb' : 'Eng'}`;
+            render(); 
+        };
+        
+        els.toggles.images.onclick = () => { 
+            state.practice.showImages = !state.practice.showImages; 
+            els.toggles.images.textContent = `Pics: ${state.practice.showImages ? 'On' : 'Off'}`;
+            render(); 
+        };
+
+        els.toggles.sentences.onclick = () => { 
+            state.practice.showSentences = !state.practice.showSentences; 
+            els.toggles.sentences.textContent = `Sent: ${state.practice.showSentences ? 'On' : 'Off'}`;
+            render(); 
+        };
+
+        els.toggles.hebrew.onclick = () => {
+            const isHidden = els.toggles.hebrew.textContent.includes('Show');
+            els.toggles.hebrew.textContent = isHidden ? "Hide Hebrew" : "Show Hebrew";
+            // Logic to hide hebrew in game mode would go here by toggling a CSS class or state
+            // Simplified for this version: toggles visibility of RTL elements
+            document.querySelectorAll('.rtl').forEach(el => el.style.opacity = isHidden ? '1' : '0');
+        };
+        
+        document.getElementById('instructions-btn').onclick = () => {
+            showModal("Instructions", `
+                <ul class='text-left list-disc pl-4 space-y-2'>
+                    <li><strong>Practice:</strong> Flip cards. Blue button = Next.</li>
+                    <li><strong>Game:</strong> 4 stages. Presentation -> Quiz -> Review -> Type.</li>
+                    <li><strong>Challenge:</strong> Drag & drop words + AI writing check.</li>
+                </ul>
+            `);
+        };
+
+        // Init
+        document.getElementById('session-id').textContent = Math.random().toString(36).substr(2, 6).toUpperCase();
+        render(); // Start at menu
+
     </script>
 </body>
 </html>
